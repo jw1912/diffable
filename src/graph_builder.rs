@@ -1,6 +1,14 @@
-use std::{cell::RefCell, collections::{HashMap, HashSet}, fmt::Debug, ops::Index};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    ops::Index,
+};
 
-use crate::{operation::{BackwardFunc, ForwardFunc, OperationQueue}, DiffableOperation, Graph, Tensor};
+use crate::{
+    operation::{BackwardFunc, ForwardFunc, OperationQueue},
+    DiffableOperation, Graph, Tensor,
+};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Node(pub(crate) usize);
@@ -204,7 +212,10 @@ impl<T: Tensor> GraphBuilder<T> {
 
         let root = *self.roots.iter().next().unwrap();
         assert!(self[root].requires_grad, "Output cannot be an input!");
-        assert!(!self.weights.contains(&root), "Can't output trainable weights!");
+        assert!(
+            !self.weights.contains(&root),
+            "Can't output trainable weights!"
+        );
 
         let nodes = self
             .nodes

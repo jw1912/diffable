@@ -25,9 +25,7 @@ pub struct OperationQueue<F> {
 
 impl<F> OperationQueue<F> {
     pub fn new() -> Self {
-        Self {
-            queue: Vec::new(),
-        }
+        Self { queue: Vec::new() }
     }
 
     pub fn push(&mut self, operation: F, inputs: &[Node], output: Node) {

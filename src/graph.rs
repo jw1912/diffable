@@ -1,14 +1,15 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Display};
 
-use crate::{operation::{BackwardFunc, ForwardFunc, OperationQueue}, Node, Tensor};
+use crate::{
+    operation::{BackwardFunc, ForwardFunc, OperationQueue},
+    Node, Tensor,
+};
 
 pub struct Graph<T: Tensor> {
     pub(crate) nodes: Vec<RefCell<T>>,
-
     pub(crate) root: Node,
     pub(crate) inputs: HashMap<String, Node>,
     pub(crate) weights: HashMap<String, Node>,
-
     pub(crate) forward: OperationQueue<ForwardFunc<T>>,
     pub(crate) backward: OperationQueue<BackwardFunc<T>>,
 }
