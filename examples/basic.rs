@@ -13,10 +13,7 @@ fn main() {
     while batch_loss > 0.01 {
         batch_loss = 0.0;
 
-        for (input, target) in [
-            (0.0, 3.0),
-            (2.0, 7.0)
-        ] {
+        for (input, target) in [(0.0, 3.0), (2.0, 7.0)] {
             graph.store_input("x", &Float::from(input));
             graph.store_input("y", &Float::from(target));
 
@@ -32,7 +29,7 @@ fn main() {
                 weight.val -= lr * weight.grad.unwrap();
             }
         }
-        
+
         println!("Loss: {batch_loss}")
     }
 
@@ -251,13 +248,14 @@ mod abs {
         let output_grad = output.grad.unwrap();
 
         if let Some(grd) = inputs[0].grad.as_mut() {
-            *grd += output_grad * if inputs[0].val > 0.0 {
-                1.0
-            } else if inputs[0].val == 0.0 {
-                0.0
-            } else {
-                -1.0
-            };
+            *grd += output_grad
+                * if inputs[0].val > 0.0 {
+                    1.0
+                } else if inputs[0].val == 0.0 {
+                    0.0
+                } else {
+                    -1.0
+                };
         }
     }
 }
