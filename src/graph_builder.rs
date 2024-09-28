@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::{HashMap, HashSet}, fmt::Debug, ops::Index};
 
-use crate::{graph::OperationQueue, DiffableOperation, Graph, Tensor};
+use crate::{operation::{BackwardFunc, ForwardFunc, OperationQueue}, DiffableOperation, Graph, Tensor};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Node(pub(crate) usize);
@@ -94,6 +94,12 @@ impl<T: Tensor> GraphBuilder<T> {
         operation: DiffableOperation<T>,
         inputs: &[Node],
     ) -> Node {
+        let mut set = HashSet::new();
+        assert!(
+            inputs.iter().all(|node| set.insert(node)),
+            "An operation will alias nodes on backprop!"
+        );
+
         let input_vals = inputs
             .iter()
             .map(|node| self[*node].vals)
@@ -165,8 +171,8 @@ impl<T: Tensor> GraphBuilder<T> {
         sorted
     }
 
-    fn build_forward(&self, sorted_nodes: &[Node]) -> OperationQueue<T> {
-        let mut queue = OperationQueue::default();
+    fn build_forward(&self, sorted_nodes: &[Node]) -> OperationQueue<ForwardFunc<T>> {
+        let mut queue = OperationQueue::new();
 
         for &node in sorted_nodes {
             let data = &self[node];
@@ -179,8 +185,26 @@ impl<T: Tensor> GraphBuilder<T> {
         queue
     }
 
+    fn build_backward(&self, sorted_nodes: &[Node]) -> OperationQueue<BackwardFunc<T>> {
+        let mut queue = OperationQueue::new();
+
+        for &node in sorted_nodes.iter().rev() {
+            let data = &self[node];
+
+            if let Some(operation) = &data.parent_operation {
+                queue.push(operation.backprop, &data.parent_nodes, node);
+            }
+        }
+
+        queue
+    }
+
     pub fn build(&self) -> Graph<T> {
-        assert_eq!(self.roots.len(), 1);
+        assert_eq!(self.roots.len(), 1, "Graph must have a single output!");
+
+        let root = *self.roots.iter().next().unwrap();
+        assert!(self[root].requires_grad, "Output cannot be an input!");
+        assert!(!self.weights.contains(&root), "Can't output trainable weights!");
 
         let nodes = self
             .nodes
@@ -203,13 +227,15 @@ impl<T: Tensor> GraphBuilder<T> {
         let sorted = self.topological_sort_of_nodes();
 
         let forward = self.build_forward(&sorted);
+        let backward = self.build_backward(&sorted);
 
         Graph {
             nodes,
-            root: *self.roots.iter().next().unwrap(),
+            root,
             inputs,
             weights,
             forward,
+            backward,
         }
     }
 }

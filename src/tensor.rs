@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 pub trait Tensor: Debug + Default {
-    type ModelOfTensor: Copy + Debug;
+    type ModelOfTensor: Copy + Debug + From<Self>;
 
     fn new(desc: Self::ModelOfTensor, requires_grad: bool) -> Self;
 
@@ -10,4 +10,6 @@ pub trait Tensor: Debug + Default {
     fn copy_values_into(&self, dest: &mut Self);
 
     fn zero_grad(&mut self);
+
+    fn set_grad_to_unit(&mut self);
 }
