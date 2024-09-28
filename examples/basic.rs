@@ -3,19 +3,42 @@ use diffable::{DiffableOperation, Graph, GraphBuilder, Node, Tensor};
 fn main() {
     let mut graph = network();
 
+    let lr = 0.01;
+
     graph.store_weights("a", &Float::from(1.0));
     graph.store_weights("b", &Float::from(0.0));
 
-    graph.store_input("x", &Float::from(3.0));
-    graph.store_input("y", &Float::from(2.0));
+    let mut batch_loss = 1f32;
 
-    let out = graph.forward();
+    while batch_loss > 0.01 {
+        batch_loss = 0.0;
 
-    println!("{out}");
+        for (input, target) in [
+            (0.0, 3.0),
+            (2.0, 7.0)
+        ] {
+            graph.store_input("x", &Float::from(input));
+            graph.store_input("y", &Float::from(target));
 
-    graph.backward();
+            let loss = graph.forward();
 
-    println!("{graph}");
+            batch_loss += loss;
+
+            graph.zero_grads();
+            graph.backward();
+
+            for id in graph.weight_ids() {
+                let weight = graph.get_weights_mut(&id);
+                weight.val -= lr * weight.grad.unwrap();
+            }
+        }
+        
+        println!("Loss: {batch_loss}")
+    }
+
+    for id in graph.weight_ids() {
+        println!("Weight '{id}': {:?}", graph.get_weights(&id).val);
+    }
 }
 
 fn network() -> Graph<Float> {
@@ -29,7 +52,8 @@ fn network() -> Graph<Float> {
 
     let c = Operation::mul(&mut builder, a, x);
     let pred = Operation::add(&mut builder, c, b);
-    Operation::sub(&mut builder, pred, y);
+    let diff = Operation::sub(&mut builder, pred, y);
+    Operation::abs(&mut builder, diff);
 
     builder.build()
 }
@@ -91,6 +115,10 @@ impl Operation {
 
     pub fn mul(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
         graph.create_result_of_operation(mul(), &[a, b])
+    }
+
+    pub fn abs(graph: &mut GraphBuilder<Float>, a: Node) -> Node {
+        graph.create_result_of_operation(abs(), &[a])
     }
 }
 
@@ -192,6 +220,44 @@ mod mul {
             if let Some(grd) = inputs[a].grad.as_mut() {
                 *grd += output_grad * inputs[b].val;
             }
+        }
+    }
+}
+
+fn abs() -> DiffableOperation<Float> {
+    DiffableOperation {
+        output_tensor: abs::is_valid,
+        forward: abs::forward,
+        backprop: abs::backprop,
+    }
+}
+
+mod abs {
+    use super::*;
+
+    pub fn is_valid(inputs: &[()]) -> Result<(), String> {
+        if inputs.len() != 1 {
+            Err(String::from("Invalid number of arguments!"))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn forward(inputs: &[&Float], output: &mut Float) {
+        output.val = inputs[0].val.abs();
+    }
+
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+        let output_grad = output.grad.unwrap();
+
+        if let Some(grd) = inputs[0].grad.as_mut() {
+            *grd += output_grad * if inputs[0].val > 0.0 {
+                1.0
+            } else if inputs[0].val == 0.0 {
+                0.0
+            } else {
+                -1.0
+            };
         }
     }
 }

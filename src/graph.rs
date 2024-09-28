@@ -42,4 +42,22 @@ impl<T: Tensor> Graph<T> {
     pub fn store_weights(&mut self, weights: &str, data: &T) {
         self.store_values(self.weights[weights], data);
     }
+
+    pub fn zero_grads(&mut self) {
+        for node in &mut self.nodes {
+            node.get_mut().zero_grad();
+        }
+    }
+
+    pub fn weight_ids(&self) -> Vec<String> {
+        self.weights.keys().cloned().collect()
+    }
+
+    pub fn get_weights(&self, id: &str) -> std::cell::Ref<'_, T> {
+        self.nodes[self.weights[id].0].borrow()
+    }
+
+    pub fn get_weights_mut(&mut self, id: &str) -> &mut T {
+        self.nodes[self.weights[id].0].get_mut()
+    }
 }
