@@ -207,7 +207,7 @@ impl<T: Tensor> GraphBuilder<T> {
         queue
     }
 
-    pub fn build(&self) -> Graph<T> {
+    pub fn build(&self, execution_context: T::ExecutionContext) -> Graph<T> {
         assert_eq!(self.roots.len(), 1, "Graph must have a single output!");
 
         let root = *self.roots.iter().next().unwrap();
@@ -247,6 +247,7 @@ impl<T: Tensor> GraphBuilder<T> {
             weights,
             forward,
             backward,
+            execution_context,
         }
     }
 }

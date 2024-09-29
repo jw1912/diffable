@@ -52,7 +52,7 @@ fn network() -> Graph<Float> {
     let diff = Operation::sub(&mut builder, pred, y);
     Operation::abs(&mut builder, diff);
 
-    builder.build()
+    builder.build(())
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -73,6 +73,7 @@ impl From<Float> for () {
 
 impl Tensor for Float {
     type ModelOfTensor = ();
+    type ExecutionContext = ();
 
     fn new(_: Self::ModelOfTensor, requires_grad: bool) -> Self {
         Self {
@@ -138,11 +139,11 @@ mod add {
         }
     }
 
-    pub fn forward(inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val + inputs[1].val;
     }
 
-    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for input in inputs {
@@ -172,11 +173,11 @@ mod sub {
         }
     }
 
-    pub fn forward(inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val - inputs[1].val;
     }
 
-    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (input, sgn) in inputs.iter_mut().zip([1.0, -1.0].iter()) {
@@ -206,11 +207,11 @@ mod mul {
         }
     }
 
-    pub fn forward(inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val * inputs[1].val;
     }
 
-    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (a, b) in [(0, 1), (1, 0)] {
@@ -240,11 +241,11 @@ mod abs {
         }
     }
 
-    pub fn forward(inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val.abs();
     }
 
-    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         if let Some(grd) = inputs[0].grad.as_mut() {

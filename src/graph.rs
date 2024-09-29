@@ -12,6 +12,7 @@ pub struct Graph<T: Tensor> {
     pub(crate) weights: HashMap<String, Node>,
     pub(crate) forward: OperationQueue<ForwardFunc<T>>,
     pub(crate) backward: OperationQueue<BackwardFunc<T>>,
+    pub(crate) execution_context: T::ExecutionContext,
 }
 
 impl<T: Tensor> Display for Graph<T> {
@@ -22,13 +23,15 @@ impl<T: Tensor> Display for Graph<T> {
 
 impl<T: Tensor> Graph<T> {
     pub fn forward(&mut self) -> f32 {
-        self.forward.execute_on(&mut self.nodes);
+        self.forward
+            .execute_on(&self.execution_context, &mut self.nodes);
         self.nodes[self.root.0].borrow().get_scalar().unwrap()
     }
 
     pub fn backward(&mut self) {
         self.nodes[self.root.0].get_mut().set_grad_to_unit();
-        self.backward.execute_on(&mut self.nodes);
+        self.backward
+            .execute_on(&self.execution_context, &mut self.nodes);
     }
 
     fn store_values(&mut self, node: Node, data: &T) {
@@ -51,6 +54,14 @@ impl<T: Tensor> Graph<T> {
 
     pub fn weight_ids(&self) -> Vec<String> {
         self.weights.keys().cloned().collect()
+    }
+
+    pub fn get_input(&self, id: &str) -> std::cell::Ref<'_, T> {
+        self.nodes[self.inputs[id].0].borrow()
+    }
+
+    pub fn get_input_mut(&mut self, id: &str) -> &mut T {
+        self.nodes[self.inputs[id].0].get_mut()
     }
 
     pub fn get_weights(&self, id: &str) -> std::cell::Ref<'_, T> {

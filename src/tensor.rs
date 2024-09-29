@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 pub trait Tensor: Debug + Default {
     type ModelOfTensor: Copy + Debug + From<Self>;
+    type ExecutionContext: Debug;
 
     fn new(desc: Self::ModelOfTensor, requires_grad: bool) -> Self;
 

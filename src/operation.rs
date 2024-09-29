@@ -7,8 +7,8 @@ type ModelResult<T> = Result<<T as Tensor>::ModelOfTensor, String>;
 #[derive(Clone, Copy, Debug)]
 pub struct DiffableOperation<T: Tensor> {
     pub output_tensor: fn(&[T::ModelOfTensor]) -> ModelResult<T>,
-    pub forward: fn(&[&T], &mut T),
-    pub backprop: fn(&T, &mut [&mut T]),
+    pub forward: ForwardFunc<T>,
+    pub backprop: BackwardFunc<T>,
 }
 
 #[derive(Debug)]
@@ -37,10 +37,10 @@ impl<F> OperationQueue<F> {
     }
 }
 
-pub type ForwardFunc<T> = fn(&[&T], &mut T);
+pub type ForwardFunc<T> = fn(&<T as Tensor>::ExecutionContext, &[&T], &mut T);
 
 impl<T: Tensor> OperationQueue<ForwardFunc<T>> {
-    pub fn execute_on(&self, graph: &mut [RefCell<T>]) {
+    pub fn execute_on(&self, ctx: &T::ExecutionContext, graph: &mut [RefCell<T>]) {
         for OperationPayload {
             operation,
             inputs,
@@ -59,15 +59,15 @@ impl<T: Tensor> OperationQueue<ForwardFunc<T>> {
 
             let mut output = graph[output.0].borrow_mut();
 
-            operation(&inputs, &mut output);
+            operation(ctx, &inputs, &mut output);
         }
     }
 }
 
-pub type BackwardFunc<T> = fn(&T, &mut [&mut T]);
+pub type BackwardFunc<T> = fn(&<T as Tensor>::ExecutionContext, &T, &mut [&mut T]);
 
 impl<T: Tensor> OperationQueue<BackwardFunc<T>> {
-    pub fn execute_on(&self, graph: &mut [RefCell<T>]) {
+    pub fn execute_on(&self, ctx: &T::ExecutionContext, graph: &mut [RefCell<T>]) {
         for OperationPayload {
             operation,
             inputs,
@@ -86,7 +86,7 @@ impl<T: Tensor> OperationQueue<BackwardFunc<T>> {
 
             let output = graph[output.0].borrow();
 
-            operation(&output, &mut inputs);
+            operation(ctx, &output, &mut inputs);
         }
     }
 }
