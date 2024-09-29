@@ -139,11 +139,11 @@ mod add {
         }
     }
 
-    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val + inputs[1].val;
     }
 
-    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for input in inputs {
@@ -173,11 +173,11 @@ mod sub {
         }
     }
 
-    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val - inputs[1].val;
     }
 
-    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (input, sgn) in inputs.iter_mut().zip([1.0, -1.0].iter()) {
@@ -207,11 +207,11 @@ mod mul {
         }
     }
 
-    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val * inputs[1].val;
     }
 
-    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (a, b) in [(0, 1), (1, 0)] {
@@ -241,11 +241,11 @@ mod abs {
         }
     }
 
-    pub fn forward(_: &(), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val.abs();
     }
 
-    pub fn backprop(_: &(), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         if let Some(grd) = inputs[0].grad.as_mut() {

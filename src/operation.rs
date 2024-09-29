@@ -37,10 +37,10 @@ impl<F> OperationQueue<F> {
     }
 }
 
-pub type ForwardFunc<T> = fn(&<T as Tensor>::ExecutionContext, &[&T], &mut T);
+pub type ForwardFunc<T> = fn(&mut <T as Tensor>::ExecutionContext, &[&T], &mut T);
 
 impl<T: Tensor> OperationQueue<ForwardFunc<T>> {
-    pub fn execute_on(&self, ctx: &T::ExecutionContext, graph: &mut [RefCell<T>]) {
+    pub fn execute_on(&self, ctx: &mut T::ExecutionContext, graph: &mut [RefCell<T>]) {
         for OperationPayload {
             operation,
             inputs,
@@ -64,10 +64,10 @@ impl<T: Tensor> OperationQueue<ForwardFunc<T>> {
     }
 }
 
-pub type BackwardFunc<T> = fn(&<T as Tensor>::ExecutionContext, &T, &mut [&mut T]);
+pub type BackwardFunc<T> = fn(&mut <T as Tensor>::ExecutionContext, &T, &mut [&mut T]);
 
 impl<T: Tensor> OperationQueue<BackwardFunc<T>> {
-    pub fn execute_on(&self, ctx: &T::ExecutionContext, graph: &mut [RefCell<T>]) {
+    pub fn execute_on(&self, ctx: &mut T::ExecutionContext, graph: &mut [RefCell<T>]) {
         for OperationPayload {
             operation,
             inputs,

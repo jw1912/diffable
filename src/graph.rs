@@ -24,14 +24,14 @@ impl<T: Tensor> Display for Graph<T> {
 impl<T: Tensor> Graph<T> {
     pub fn forward(&mut self) -> f32 {
         self.forward
-            .execute_on(&self.execution_context, &mut self.nodes);
+            .execute_on(&mut self.execution_context, &mut self.nodes);
         self.nodes[self.root.0].borrow().get_scalar().unwrap()
     }
 
     pub fn backward(&mut self) {
         self.nodes[self.root.0].get_mut().set_grad_to_unit();
         self.backward
-            .execute_on(&self.execution_context, &mut self.nodes);
+            .execute_on(&mut self.execution_context, &mut self.nodes);
     }
 
     fn store_values(&mut self, node: Node, data: &T) {
