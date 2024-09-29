@@ -5,10 +5,7 @@ use std::{
     ops::Index,
 };
 
-use crate::{
-    operation::{BackwardFunc, ForwardFunc, OperationQueue},
-    DiffableOperation, Graph, Tensor,
-};
+use crate::{operation::OperationQueue, DiffableOperation, Graph, Tensor};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Node(pub(crate) usize);
@@ -19,14 +16,14 @@ pub struct NodeData<T: Tensor> {
     id: Option<String>,
     vals: T::ModelOfTensor,
     requires_grad: bool,
-    parent_operation: Option<DiffableOperation<T>>,
+    parent_operation: Option<T::DiffableOperation>,
     parent_nodes: Vec<Node>,
 }
 
 impl<T: Tensor> NodeData<T> {
     pub fn new(
         id: Option<String>,
-        operation: Option<DiffableOperation<T>>,
+        operation: Option<T::DiffableOperation>,
         vals: T::ModelOfTensor,
         requires_grad: bool,
         parents: &[Node],
@@ -99,7 +96,7 @@ impl<T: Tensor> GraphBuilder<T> {
 
     pub fn create_result_of_operation(
         &mut self,
-        operation: DiffableOperation<T>,
+        operation: T::DiffableOperation,
         inputs: &[Node],
     ) -> Node {
         let mut set = HashSet::new();
@@ -113,94 +110,34 @@ impl<T: Tensor> GraphBuilder<T> {
             .map(|node| self[*node].vals)
             .collect::<Vec<_>>();
 
-        let output_tensor = operation.output_tensor;
-        match output_tensor(&input_vals) {
+        match operation.output_tensor(&input_vals) {
             Ok(vals) => self.create_node(NodeData::new(None, Some(operation), vals, true, inputs)),
             Err(s) => panic!("{s}"),
         }
     }
 
-    fn set_of_leaves(&self) -> HashSet<Node> {
-        self.inputs
-            .union(&self.weights)
-            .copied()
-            .collect::<HashSet<Node>>()
-    }
-
-    fn set_of_edges(&self) -> HashSet<(Node, Node)> {
-        self.nodes
-            .iter()
-            .map(|node_data| {
-                node_data
-                    .parent_nodes
-                    .iter()
-                    .map(|src| (*src, node_data.own))
-                    .collect::<Vec<_>>()
-            })
-            .fold(Vec::new(), |mut x, y| {
-                x.extend_from_slice(&y);
-                x
-            })
-            .into_iter()
-            .collect()
-    }
-
-    fn topological_sort_of_nodes(&self) -> Vec<Node> {
-        let mut leaves = self.set_of_leaves();
-
-        let mut sorted = Vec::new();
-
-        let mut set_of_edges = self.set_of_edges();
-
-        while !leaves.is_empty() {
-            let n = *leaves.iter().next().unwrap();
-            leaves.remove(&n);
-
-            sorted.push(n);
-
-            let edges_from_n = set_of_edges
-                .iter()
-                .copied()
-                .filter(|(src, _)| *src == n)
-                .collect::<Vec<_>>();
-
-            for edge in edges_from_n {
-                set_of_edges.remove(&edge);
-                let m = edge.1;
-
-                if !set_of_edges.iter().any(|(_, dest)| *dest == m) {
-                    leaves.insert(m);
-                }
-            }
-        }
-
-        assert!(set_of_edges.is_empty(), "GraphBuilder contains a cycle!");
-
-        sorted
-    }
-
-    fn build_forward(&self, sorted_nodes: &[Node]) -> OperationQueue<ForwardFunc<T>> {
+    fn build_forward(&self, nodes: &[Node]) -> OperationQueue<T, false> {
         let mut queue = OperationQueue::new();
 
-        for &node in sorted_nodes {
+        for &node in nodes {
             let data = &self[node];
 
-            if let Some(operation) = &data.parent_operation {
-                queue.push(operation.forward, &data.parent_nodes, node);
+            if let Some(operation) = data.parent_operation {
+                queue.push(operation, &data.parent_nodes, node);
             }
         }
 
         queue
     }
 
-    fn build_backward(&self, sorted_nodes: &[Node]) -> OperationQueue<BackwardFunc<T>> {
+    fn build_backward(&self, nodes: &[Node]) -> OperationQueue<T, true> {
         let mut queue = OperationQueue::new();
 
-        for &node in sorted_nodes.iter().rev() {
+        for &node in nodes.iter().rev() {
             let data = &self[node];
 
-            if let Some(operation) = &data.parent_operation {
-                queue.push(operation.backprop, &data.parent_nodes, node);
+            if let Some(operation) = data.parent_operation {
+                queue.push(operation, &data.parent_nodes, node);
             }
         }
 
@@ -235,10 +172,14 @@ impl<T: Tensor> GraphBuilder<T> {
             .map(|&node| (self[node].id.clone().unwrap(), node))
             .collect::<HashMap<_, _>>();
 
-        let sorted = self.topological_sort_of_nodes();
+        let node_ids = self
+            .nodes
+            .iter()
+            .map(|node_data| node_data.own)
+            .collect::<Vec<_>>();
 
-        let forward = self.build_forward(&sorted);
-        let backward = self.build_backward(&sorted);
+        let forward = self.build_forward(&node_ids);
+        let backward = self.build_backward(&node_ids);
 
         Graph {
             nodes,

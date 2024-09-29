@@ -47,10 +47,11 @@ fn network() -> Graph<Float> {
     let x = builder.create_input("x", ());
     let y = builder.create_input("y", ());
 
-    let c = Operation::mul(&mut builder, a, x);
-    let pred = Operation::add(&mut builder, c, b);
-    let diff = Operation::sub(&mut builder, pred, y);
-    Operation::abs(&mut builder, diff);
+    let c = mul(&mut builder, a, x);
+    let pred = add(&mut builder, c, b);
+    let offset = inc(&mut builder, pred, 1.0);
+    let diff = sub(&mut builder, offset, y);
+    let _abs = abs(&mut builder, diff);
 
     builder.build(())
 }
@@ -74,6 +75,7 @@ impl From<Float> for () {
 impl Tensor for Float {
     type ModelOfTensor = ();
     type ExecutionContext = ();
+    type DiffableOperation = Operation;
 
     fn new(_: Self::ModelOfTensor, requires_grad: bool) -> Self {
         Self {
@@ -101,30 +103,64 @@ impl Tensor for Float {
     }
 }
 
-pub struct Operation;
-impl Operation {
-    pub fn add(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
-        graph.create_result_of_operation(add(), &[a, b])
-    }
-
-    pub fn sub(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
-        graph.create_result_of_operation(sub(), &[a, b])
-    }
-
-    pub fn mul(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
-        graph.create_result_of_operation(mul(), &[a, b])
-    }
-
-    pub fn abs(graph: &mut GraphBuilder<Float>, a: Node) -> Node {
-        graph.create_result_of_operation(abs(), &[a])
-    }
+fn add(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
+    graph.create_result_of_operation(Operation::Add, &[a, b])
 }
 
-fn add() -> DiffableOperation<Float> {
-    DiffableOperation {
-        output_tensor: add::is_valid,
-        forward: add::forward,
-        backprop: add::backprop,
+fn sub(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
+    graph.create_result_of_operation(Operation::Sub, &[a, b])
+}
+
+fn mul(graph: &mut GraphBuilder<Float>, a: Node, b: Node) -> Node {
+    graph.create_result_of_operation(Operation::Mul, &[a, b])
+}
+
+fn abs(graph: &mut GraphBuilder<Float>, a: Node) -> Node {
+    graph.create_result_of_operation(Operation::Abs, &[a])
+}
+
+fn inc(graph: &mut GraphBuilder<Float>, a: Node, val: f32) -> Node {
+    graph.create_result_of_operation(Operation::Inc(val), &[a])
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Operation {
+    Add,
+    Sub,
+    Mul,
+    Abs,
+    Inc(f32),
+}
+
+impl DiffableOperation<Float, (), ()> for Operation {
+    fn output_tensor(&self, inputs: &[()]) -> Result<(), String> {
+        match self {
+            Self::Add => add::is_valid(inputs),
+            Self::Sub => sub::is_valid(inputs),
+            Self::Mul => mul::is_valid(inputs),
+            Self::Abs => abs::is_valid(inputs),
+            Self::Inc(_) => inc::is_valid(inputs),
+        }
+    }
+
+    fn forward(&self, _: &mut (), inputs: &[&Float], output: &mut Float) {
+        match self {
+            Self::Add => add::forward(inputs, output),
+            Self::Sub => sub::forward(inputs, output),
+            Self::Mul => mul::forward(inputs, output),
+            Self::Abs => abs::forward(inputs, output),
+            Self::Inc(val) => inc::forward(*val, inputs, output),
+        }
+    }
+
+    fn backward(&self, _: &mut (), output_grad: &Float, inputs: &mut [&mut Float]) {
+        match self {
+            Self::Add => add::backprop(output_grad, inputs),
+            Self::Sub => sub::backprop(output_grad, inputs),
+            Self::Mul => mul::backprop(output_grad, inputs),
+            Self::Abs => abs::backprop(output_grad, inputs),
+            Self::Inc(_) => inc::backprop(output_grad, inputs),
+        }
     }
 }
 
@@ -139,11 +175,11 @@ mod add {
         }
     }
 
-    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val + inputs[1].val;
     }
 
-    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for input in inputs {
@@ -151,14 +187,6 @@ mod add {
                 *grd += output_grad;
             }
         }
-    }
-}
-
-fn sub() -> DiffableOperation<Float> {
-    DiffableOperation {
-        output_tensor: sub::is_valid,
-        forward: sub::forward,
-        backprop: sub::backprop,
     }
 }
 
@@ -173,11 +201,11 @@ mod sub {
         }
     }
 
-    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val - inputs[1].val;
     }
 
-    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (input, sgn) in inputs.iter_mut().zip([1.0, -1.0].iter()) {
@@ -185,14 +213,6 @@ mod sub {
                 *grd += sgn * output_grad;
             }
         }
-    }
-}
-
-fn mul() -> DiffableOperation<Float> {
-    DiffableOperation {
-        output_tensor: mul::is_valid,
-        forward: mul::forward,
-        backprop: mul::backprop,
     }
 }
 
@@ -207,11 +227,11 @@ mod mul {
         }
     }
 
-    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val * inputs[1].val;
     }
 
-    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         for (a, b) in [(0, 1), (1, 0)] {
@@ -219,14 +239,6 @@ mod mul {
                 *grd += output_grad * inputs[b].val;
             }
         }
-    }
-}
-
-fn abs() -> DiffableOperation<Float> {
-    DiffableOperation {
-        output_tensor: abs::is_valid,
-        forward: abs::forward,
-        backprop: abs::backprop,
     }
 }
 
@@ -241,11 +253,11 @@ mod abs {
         }
     }
 
-    pub fn forward(_: &mut (), inputs: &[&Float], output: &mut Float) {
+    pub fn forward(inputs: &[&Float], output: &mut Float) {
         output.val = inputs[0].val.abs();
     }
 
-    pub fn backprop(_: &mut (), output: &Float, inputs: &mut [&mut Float]) {
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
         let output_grad = output.grad.unwrap();
 
         if let Some(grd) = inputs[0].grad.as_mut() {
@@ -257,6 +269,30 @@ mod abs {
                 } else {
                     -1.0
                 };
+        }
+    }
+}
+
+mod inc {
+    use super::*;
+
+    pub fn is_valid(inputs: &[()]) -> Result<(), String> {
+        if inputs.len() != 1 {
+            Err(String::from("Invalid number of arguments!"))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn forward(val: f32, inputs: &[&Float], output: &mut Float) {
+        output.val = inputs[0].val.abs() + val;
+    }
+
+    pub fn backprop(output: &Float, inputs: &mut [&mut Float]) {
+        let output_grad = output.grad.unwrap();
+
+        if let Some(grd) = inputs[0].grad.as_mut() {
+            *grd += output_grad;
         }
     }
 }
