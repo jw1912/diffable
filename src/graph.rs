@@ -68,4 +68,8 @@ impl<T: Tensor> Graph<T> {
     pub fn get_weights_mut(&mut self, id: &str) -> &mut T {
         self.nodes[self.weights[id].0].get_mut()
     }
+
+    pub fn get_node(&self, node: Node) -> std::cell::Ref<'_, T> {
+        self.nodes[node.0].borrow()
+    }
 }
