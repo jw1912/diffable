@@ -57,7 +57,7 @@ impl<T: Tensor> Index<Node> for GraphBuilder<T> {
 }
 
 impl<T: Tensor> GraphBuilder<T> {
-    pub fn create_node(&mut self, mut data: NodeData<T>) -> Node
+    fn create_node(&mut self, mut data: NodeData<T>) -> Node
     where
         T: Sized,
     {
