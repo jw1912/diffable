@@ -49,6 +49,10 @@ impl<T: Tensor> Graph<T> {
         }
     }
 
+    pub fn input_ids(&self) -> Vec<String> {
+        self.inputs.keys().cloned().collect()
+    }
+
     pub fn weight_ids(&self) -> Vec<String> {
         self.weights.keys().cloned().collect()
     }
